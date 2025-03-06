@@ -2,22 +2,58 @@ import * as React from 'react';
 import * as ReactNativeScript from 'react-nativescript';
 import { MainStack } from './components/MainStack';
 import { Application } from '@nativescript/core';
-import { manuallyStoreTokens, getValidAccessToken } from './utils/auth'; // Import the new auth functions
+import { manuallyStoreTokens, getValidAccessToken, initiateOAuthFlow } from './utils/auth';
+import { knownFolders, File } from '@nativescript/core/file-system';
 
 // Controls react-nativescript log verbosity.
 Object.defineProperty(global, '__DEV__', { value: false });
 
+// Helper function to load environment variables (simplified)
+async function getEnvVariable(key: string): Promise<string> {
+    try {
+        const folder = knownFolders.currentApp();
+        const envFile = folder.getFile('.env');
+        const content = await envFile.readText();
+        
+        const match = content.match(new RegExp(`${key}=(.*)`, 'm'));
+        if (match && match[1]) {
+            // Remove quotes if present
+            let value = match[1];
+            if (value.startsWith('"') && value.endsWith('"')) {
+                value = value.substring(1, value.length - 1);
+            }
+            return value;
+        }
+        return '';
+    } catch (error) {
+        console.error(`Error loading ${key} from .env file:`, error);
+        return '';
+    }
+}
+
 const App = () => {
     const [youtubeToken, setYoutubeToken] = React.useState<string | null>(null);
+    const [isInitializing, setIsInitializing] = React.useState<boolean>(true);
 
-    // Handle deep linking to extract the access token (if needed)
+    // Handle deep linking for OAuth callback
     React.useEffect(() => {
-        const onResume = (args: any) => {
+        const onResume = async (args: any) => {
             const url = args.android ? args.android.getIntent().getDataString() : null;
-            if (url && url.startsWith('https://zp1v56uxy8rdx5ypatb0ockcb9tr6a')) {
-                const accessToken = "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"; // Replace with actual token extraction logic
-                console.log('Access Token:', accessToken);
-                setYoutubeToken(accessToken); // Set the youtubeToken state (if still needed)
+            
+            // Get the redirect URI from environment
+            const redirectUri = await getEnvVariable('YOUTUBE_REDIRECT_URI');
+            
+            if (url && redirectUri && url.startsWith(redirectUri)) {
+                // Extract token from URL parameters 
+                const urlParams = new URLSearchParams(url.split('?')[1]);
+                const accessToken = urlParams.get('access_token');
+                const refreshToken = urlParams.get('refresh_token');
+                
+                if (accessToken && refreshToken) {
+                    console.log('OAuth tokens received from callback');
+                    await manuallyStoreTokens(accessToken, refreshToken);
+                    setYoutubeToken(accessToken);
+                }
             }
         };
 
@@ -29,28 +65,37 @@ const App = () => {
         };
     }, []);
 
-    // Initialize the tokens (call this once to store your tokens)
+    // Initialize authentication state
     React.useEffect(() => {
         const initializeTokens = async () => {
             try {
-                // Replace these with your actual tokens
-                const accessToken = "ya29.a0AXeO80TQrU36-tg6Hme7DHi2lmc32_V_By0Kwl1PXfrHpzQSK1OABALL_IoPj2w-Ke61kIVbvhH31O6TXahp-KriIF3Fe53h9OlKQHmusCTRuR7b2lSuYXd6o4OfH4YBA-v2rBkRuf0iaNq5-W0E0v9Cs5-xA5HeUj7jkxJbaCgYKAWQSARMSFQHGX2Mif6KL9Dd3kHEfkuDwPMsB_A0175";
-                const refreshToken = "1//04C0bZYTMsqPxCgYIARAAGAQSNwF-L9IrId4qru0G2vgb3oWOXwFcsIJCsQNViobqqmuX8ul3JTsF7wM6sAHjspAp2fAFAuavibY";
-
-                // Store the tokens using the new auth.ts function
-                await manuallyStoreTokens(accessToken, refreshToken);
-                console.log('Tokens initialized successfully!');
-
-                // Fetch a valid access token (optional, for testing)
-                const validToken = await getValidAccessToken();
-                setYoutubeToken(validToken); // Set the youtubeToken state (if still needed)
+                setIsInitializing(true);
+                
+                // Try to get a valid token if already stored
+                const validToken = await getValidAccessToken().catch(() => null);
+                
+                if (validToken) {
+                    console.log('Using existing valid token');
+                    setYoutubeToken(validToken);
+                } else {
+                    console.log('No valid token found - user needs to authenticate');
+                    // In a real app, you would trigger the OAuth flow here
+                    // or prompt the user to authenticate
+                }
             } catch (error) {
-                console.error('Failed to initialize tokens:', error);
+                console.error('Failed to initialize authentication:', error);
+            } finally {
+                setIsInitializing(false);
             }
         };
 
         initializeTokens();
     }, []);
+
+    if (isInitializing) {
+        // You could show a loading screen here
+        return null;
+    }
 
     return React.createElement(MainStack, { youtubeToken: youtubeToken });
 };

@@ -1,6 +1,7 @@
 // src/utils/auth.ts
 
 import { ApplicationSettings } from '@nativescript/core';
+import { knownFolders, File, Folder } from '@nativescript/core/file-system';
 
 /**
  * Represents the structure of OAuth tokens and their expiration
@@ -13,9 +14,54 @@ interface TokenData {
 
 // Constants for authentication
 const TOKEN_STORAGE_KEY = 'youtube_tokens';
-const CLIENT_ID = '347436410930-0vefq82j0u978gca10a86em0a27gd2cm.apps.googleusercontent.com'; // Replace with your Google OAuth client ID
-const CLIENT_SECRET = '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'; // Replace with your Google OAuth client secret
 const REFRESH_TOKEN_URL = 'https://oauth2.googleapis.com/token';
+
+/**
+ * Loads environment variables from .env file
+ * This is a simple implementation - in production, use a more robust solution
+ */
+async function loadEnv(): Promise<{[key: string]: string}> {
+    try {
+        const folder = knownFolders.currentApp();
+        const envFile = folder.getFile('.env');
+        const content = await envFile.readText();
+        
+        const env: {[key: string]: string} = {};
+        content.split('\n').forEach(line => {
+            // Skip comments and empty lines
+            if (!line || line.startsWith('#')) return;
+            
+            const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+            if (match) {
+                const key = match[1];
+                // Remove quotes if present
+                let value = match[2] || '';
+                if (value.startsWith('"') && value.endsWith('"')) {
+                    value = value.substring(1, value.length - 1);
+                }
+                env[key] = value;
+            }
+        });
+        
+        return env;
+    } catch (error) {
+        console.error('Error loading .env file:', error);
+        return {};
+    }
+}
+
+// Cache for environment variables
+let envCache: {[key: string]: string} | null = null;
+
+/**
+ * Gets an environment variable
+ */
+async function getEnvVariable(key: string): Promise<string> {
+    if (!envCache) {
+        envCache = await loadEnv();
+    }
+    return envCache[key] || '';
+}
 
 /**
  * Manually store the access and refresh tokens for testing or initial setup.
@@ -23,8 +69,8 @@ const REFRESH_TOKEN_URL = 'https://oauth2.googleapis.com/token';
  */
 export async function manuallyStoreTokens(accessToken: string, refreshToken: string): Promise<void> {
     const tokens: TokenData = {
-        accessToken: "ya29.a0AeXRPp5h5xXrgIMKdgyO2CCofqUkKASSY_j1bdvWNB_A4MbimruOmBok_BB7gU4dIS84jABkWiK-fUaGM38wSURiL0-0NXZVA1v5zgeaf3m_zTcHSGwGxWQJv0qnSR7GQdIO541VJU47uQJawzuRiDIbCGCjA3pJN8nPk8a2aCgYKARUSARMSFQHGX2MibrPTr8Hsli3HwK9xc9daWA0175", // Use the access token you obtained
-        refreshToken: "1//04_ujK6I2GeSaCgYIARAAGAQSNwF-L9IrZ08pmNiIeTr8L4KyBqOoZ15X_zj_7LuCjtpPNyWS0lUtmDS-3t6QmNJ3iQvquI-bxfc", // Use the refresh token you obtained
+        accessToken,
+        refreshToken,
         expiresAt: Date.now() + 3600 * 1000, // Set expiration to 1 hour from now
     };
 
@@ -75,14 +121,21 @@ export async function clearTokens(): Promise<void> {
  */
 export async function refreshAccessToken(refreshToken: string): Promise<TokenData> {
     try {
+        const clientId = await getEnvVariable('YOUTUBE_CLIENT_ID');
+        const clientSecret = await getEnvVariable('YOUTUBE_CLIENT_SECRET');
+
+        if (!clientId || !clientSecret) {
+            throw new Error('Missing API credentials. Please check your .env file.');
+        }
+
         const response = await fetch(REFRESH_TOKEN_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
             body: new URLSearchParams({
-                client_id: CLIENT_ID,
-                client_secret: CLIENT_SECRET,
+                client_id: clientId,
+                client_secret: clientSecret,
                 refresh_token: refreshToken,
                 grant_type: 'refresh_token',
             }),
@@ -97,7 +150,7 @@ export async function refreshAccessToken(refreshToken: string): Promise<TokenDat
         
         const tokens: TokenData = {
             accessToken: data.access_token,
-            refreshToken: "refeshToken", // Keep the existing refresh token
+            refreshToken: refreshToken, // Keep the existing refresh token
             expiresAt: Date.now() + (data.expires_in * 1000), // Set new expiration time
         };
 
@@ -105,8 +158,6 @@ export async function refreshAccessToken(refreshToken: string): Promise<TokenDat
         return tokens;
     } catch (error) {
         console.error('Error refreshing token:', error);
-        // Clear stored tokens if refresh fails
-        await clearTokens();
         throw new Error('Failed to refresh authentication token');
     }
 }
@@ -122,9 +173,36 @@ export async function getValidAccessToken(): Promise<string> {
 
     // Check if the current token is expired or will expire soon (5-minute buffer)
     if (tokens.expiresAt - Date.now() < 300000) {
-        const newTokens = await refreshAccessToken(tokens.refreshToken);
-        return newTokens.accessToken;
+        try {
+            const newTokens = await refreshAccessToken(tokens.refreshToken);
+            return newTokens.accessToken;
+        } catch (error) {
+            // If refresh fails, clear tokens and rethrow
+            await clearTokens();
+            throw error;
+        }
     }
 
     return tokens.accessToken;
+}
+
+/**
+ * Initiates the OAuth flow for YouTube API
+ */
+export async function initiateOAuthFlow(): Promise<void> {
+    try {
+        const clientId = await getEnvVariable('YOUTUBE_CLIENT_ID');
+        const redirectUri = await getEnvVariable('YOUTUBE_REDIRECT_URI');
+        
+        if (!clientId || !redirectUri) {
+            throw new Error('Missing OAuth configuration. Please check your .env file.');
+        }
+        
+        // This is just a placeholder for how you might implement OAuth flow
+        // The actual implementation depends on your specific requirements and platform
+        console.log('OAuth flow would be initiated here.');
+    } catch (error) {
+        console.error('Failed to initiate OAuth flow:', error);
+        throw error;
+    }
 }
