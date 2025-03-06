@@ -2,25 +2,23 @@ import { RouteProp } from '@react-navigation/core';
 import * as React from "react";
 import { StyleSheet } from "react-nativescript";
 import { FrameNavigationProp } from "react-nativescript-navigation";
-
-import { MainStackParamList } from "../NavigationParamList";
+import { MainStackParamList } from "../NavigationParamList"; // Ensure this path is correct
 
 type ScreenTwoProps = {
     route: RouteProp<MainStackParamList, "Two">,
     navigation: FrameNavigationProp<MainStackParamList, "Two">,
 };
 
-export function ScreenTwo({ navigation, route }: ScreenTwoProps) {
+export function ScreenTwo({ route, navigation }: ScreenTwoProps) {
+    const { message } = route.params;
+
     return (
         <flexboxLayout style={styles.container}>
-            <label style={styles.text}>
-                You're viewing screen two!
-            </label>
-            <label style={styles.text}>
-                Message: {route.params.message}
+            <label className="text-2xl mb-4 font-bold text-center text-indigo-600">
+                {message}
             </label>
             <button
-                style={styles.button}
+                className="btn btn-primary"
                 onTap={() => navigation.goBack()}
             >
                 Go back
@@ -34,15 +32,9 @@ const styles = StyleSheet.create({
         height: "100%",
         flexDirection: "column",
         justifyContent: "center",
-        backgroundColor: "yellow",
-    },
-    text: {
-        textAlignment: "center",
-        fontSize: 24,
-        color: "black",
-    },
-    button: {
-        fontSize: 24,
-        color: "#2e6ddf",
+        alignItems: "center",
+        padding: 20,
     },
 });
+
+export default ScreenTwo;

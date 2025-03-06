@@ -1,54 +1,64 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from 'react';
+import { fetchYouTubeActivities, fetchYouTubeSubscriptions } from '../data/youtube';
+import { analyzeYouTubeData } from '../utils/analyzeYouTubeData';
+import { getStoredTokens } from '../utils/auth';
 
-type Insight = {
-    id: string;
-    title: string;
-    description: string;
-    type: string;
-};
-
-export function useInsights() {
-    const [insights, setInsights] = useState<Insight[]>([]);
+export const useInsights = (youtubeToken: string | null) => {
+    const [insights, setInsights] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        // Simulate API call
-        setTimeout(() => {
-            setInsights([
-                {
-                     id: 1,
-      title: 'Exercise Pattern Detected',
-      description: 'Analyze your exercise habits and get tailored recommendations.',
-      link: '/exercise-pattern',
-    },
-    {
-      id: 2,
-      title: 'Financial Opportunity',
-      description: 'Discover ways to improve your financial health.',
-      link: '/financial-opportunity',
-    },
-    {
-      id: 3,
-      title: 'Learning Recommendation',
-      description: 'Find courses and materials to upskill effectively.',
-      link: '/learning-recommendation',
-    },
-    {
-      id: 4,
-      title: 'Sites of Interest',
-      description: 'Explore interesting sites using Google Maps, YouTube, and financial data.',
-      link: '/sites-of-interest',
-    },
-    {
-      id: 5,
-      title: 'Chat',
-      description: 'Connect with like-minded individuals and make new friends.',
-      link: '/chat',
-                },
-            ]);
-            setLoading(false);
-        }, 1000);
+        const fetchData = async () => {
+            try {
+                setLoading(true);
+                setError(null);
+
+                // Check if we have valid tokens
+                const tokens = await getStoredTokens();
+                if (!tokens?.accessToken) {
+                    // Return fallback insights if no authentication
+                    setInsights([
+                        {
+                            id: "1",
+                            title: "Exercise Pattern Detected",
+                            description: "Analyze your exercise habits and get tailored recommendations.",
+                            link: "/exercise-pattern",
+                        },
+                        // ... other fallback insights
+                    ]);
+                    return;
+                }
+
+                // Fetch and analyze data
+                const [activities, subscriptions] = await Promise.all([
+                    fetchYouTubeActivities(),
+                    fetchYouTubeSubscriptions(),
+                ]);
+
+                const analyzedInsights = analyzeYouTubeData(activities, subscriptions);
+                setInsights(analyzedInsights);
+            } catch (error) {
+                console.error('Error in useInsights:', error);
+                setError(error instanceof Error ? error.message : 'An unknown error occurred');
+                
+                // Set fallback insights on error
+                setInsights([
+                    {
+                        id: "1",
+                        title: "Exercise Pattern Detected",
+                        description: "Analyze your exercise habits and get tailored recommendations.",
+                        link: "/exercise-pattern",
+                    },
+                    // ... other fallback insights
+                ]);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchData();
     }, []);
 
-    return { insights, loading };
-}
+    return { insights, loading, error };
+};

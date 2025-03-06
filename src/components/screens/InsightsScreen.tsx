@@ -1,35 +1,40 @@
-import { RouteProp } from '@react-navigation/core';
 import * as React from "react";
 import { StyleSheet } from "react-nativescript";
+import { RouteProp } from "@react-navigation/core"; // Correct import for RouteProp
 import { FrameNavigationProp } from "react-nativescript-navigation";
 import { MainStackParamList } from "../../NavigationParamList";
 import { InsightCard } from "../ui/InsightCard";
-import { useInsights } from "../../hooks/useInsights";
+import { useInsights } from "../../hooks/useInsights"; // Ensure correct import path
 
 type InsightsScreenProps = {
-    route: RouteProp<MainStackParamList, "Insights">,
-    navigation: FrameNavigationProp<MainStackParamList, "Insights">,
+    route: RouteProp<MainStackParamList, "Insights">; // Corrected type
+    navigation: FrameNavigationProp<MainStackParamList, "Insights">;
+    youtubeToken: string | null;
 };
 
-export function InsightsScreen({ navigation }: InsightsScreenProps) {
-    const { insights, loading } = useInsights();
+export function InsightsScreen({ navigation, youtubeToken }: InsightsScreenProps) {
+    const { insights, loading, error } = useInsights(youtubeToken);
+
+    if (loading) {
+        return <label>Loading...</label>;
+    }
+
+    if (error) {
+        return <label>Error: {error}</label>;
+    }
 
     return (
         <scrollView>
-            <stackLayout style={styles.container}>
-                <label className="text-2xl font-bold mb-4">Your Insights</label>
-                
-                {loading ? (
-                    <activityIndicator busy={true} />
-                ) : (
-                    insights.map(insight => (
-                        <InsightCard
-                            key={insight.id}
-                            insight={insight}
-                            onTap={() => console.log("Insight tapped:", insight.id)}
-                        />
-                    ))
-                )}
+            <stackLayout className="insights-container">
+                <label className="insights-title">Your Insights</label>
+
+                {insights.map((insight) => (
+                    <InsightCard
+                        key={insight.id}
+                        insight={insight}
+                        onTap={() => navigation.navigate(insight.type)}
+                    />
+                ))}
             </stackLayout>
         </scrollView>
     );

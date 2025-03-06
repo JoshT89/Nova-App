@@ -7,10 +7,12 @@ import { GoalsScreen } from "./screens/GoalsScreen";
 import { InsightsScreen } from "./screens/InsightsScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
 import { GoalDetailScreen } from "./screens/GoalDetailScreen";
+import { ScreenOne } from "./ScreenOne"; // Ensure this path is correct
+import { ScreenTwo } from "./ScreenTwo"; // Ensure this path is correct
 
 const StackNavigator = stackNavigatorFactory();
 
-export const MainStack = () => (
+export const MainStack = ({ youtubeToken }: { youtubeToken: string | null }) => (
     <BaseNavigationContainer>
         <StackNavigator.Navigator
             initialRouteName="Home"
@@ -34,9 +36,9 @@ export const MainStack = () => (
             />
             <StackNavigator.Screen
                 name="Insights"
-                component={InsightsScreen}
-                options={{ title: "Insights" }}
-            />
+            >
+                {(props) => <InsightsScreen {...props} youtubeToken={youtubeToken} />}
+            </StackNavigator.Screen>
             <StackNavigator.Screen
                 name="Profile"
                 component={ProfileScreen}
@@ -47,6 +49,17 @@ export const MainStack = () => (
                 component={GoalDetailScreen}
                 options={{ title: "Goal Details" }}
             />
+            <StackNavigator.Screen
+                name="One"
+                component={ScreenOne}
+                options={{ title: "Screen One" }}
+            />
+            <StackNavigator.Screen
+                name="Two"
+                component={ScreenTwo}
+                options={{ title: "Screen Two" }}
+            />
         </StackNavigator.Navigator>
     </BaseNavigationContainer>
 );
+
